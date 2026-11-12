@@ -1,0 +1,5 @@
+data/
+__pycache__/
+.pytest_cache/
+.streamlit/secrets.toml
+picks_log_*.json.local
