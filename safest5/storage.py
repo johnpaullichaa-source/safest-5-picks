@@ -48,9 +48,41 @@ def _secret(key: str, default=None):
     return env.strip() if env else default
 
 
+def _token() -> str | None:
+    """Same places the NRL app looks: [github] token / pat, GITHUB_TOKEN, GH_TOKEN."""
+    val = _secret("token") or _secret("pat")
+    if val:
+        return val
+    for name in ("GITHUB_TOKEN", "GH_TOKEN", "github_token", "token"):
+        try:
+            v = st.secrets.get(name)
+            if v:
+                return str(v).strip()
+        except Exception:
+            pass
+        if os.environ.get(name):
+            return os.environ[name].strip()
+    return None
+
+
+def secret_names() -> list[str]:
+    """Names (never values) of the secrets the app can see, for troubleshooting."""
+    names = []
+    try:
+        for k in st.secrets.keys():
+            v = st.secrets[k]
+            if hasattr(v, "keys"):
+                names += [f"[{k}] {kk}" for kk in v.keys()]
+            else:
+                names.append(k)
+    except Exception:
+        pass
+    return names
+
+
 def config() -> dict:
     cfg = {k: _secret(k, v) for k, v in DEFAULTS.items()}
-    cfg["token"] = _secret("token")
+    cfg["token"] = _token()
     return cfg
 
 
@@ -93,7 +125,12 @@ def read_data_file(path: str) -> tuple[bytes | None, str]:
     local = LOCAL_DATA / path
     if local.exists():
         return local.read_bytes(), f"local data/{path}"
-    return None, "No GitHub token set and no local copy."
+    seen = secret_names()
+    if seen:
+        return None, ("No GitHub token found. The app can see these secrets: "
+                      + ", ".join(seen) + ". It needs one called token under [github].")
+    return None, ("No GitHub token found: the app can't see any secrets yet. "
+                  "Add them under Manage app → ⋮ → Settings → Secrets, save, then reload this page.")
 
 
 def refresh_data() -> None:

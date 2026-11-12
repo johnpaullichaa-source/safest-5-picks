@@ -50,8 +50,9 @@ def results() -> pd.DataFrame | None:
     raw, src = storage.read_data_file("nrl.xlsx")
     if raw is None:
         st.error(f"Couldn't load nrl.xlsx. {src}")
-        st.info("Add your GitHub token under the app's Secrets (see README), "
-                "or put a copy of nrl.xlsx in a local data/ folder.")
+        st.info("Paste this into the app's Secrets (Manage app → ⋮ → Settings → Secrets), "
+                "using the same token as your NRL app:")
+        st.code('[github]\ntoken = "github_pat_..."', language="toml")
         return None
     return _parse_results(raw)
 
