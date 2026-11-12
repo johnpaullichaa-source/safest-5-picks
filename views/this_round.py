@@ -6,13 +6,13 @@ import pandas as pd
 import streamlit as st
 
 from safest5 import storage
-from safest5.ats import ats_table, blended_splits, rank_fixtures
+from safest5.ats import ats_table, rank_fixtures, season_table
 from safest5.data import DEFAULT_LINE_ODDS, round_sort_key
 
-from views.common import MIN_GAMES_DEFAULT, PICKS_FILE, SEASON, fixtures, page_header, results
+from views.common import PICKS_FILE, SEASON, fixtures, page_header, results, table_rule_controls
 
 
-def _why(r: pd.Series) -> str:
+def _why(r: pd.Series, method: str) -> str:
     side = "home" if r["Pick Is Home"] else "away"
     pick_pct = r["Home Split %"] if r["Pick Is Home"] else r["Away Split %"]
     opp_pct = r["Away Split %"] if r["Pick Is Home"] else r["Home Split %"]
@@ -20,7 +20,7 @@ def _why(r: pd.Series) -> str:
     opp_rec = r["Away Split Record"] if r["Pick Is Home"] else r["Home Split Record"]
     opp_side = "away" if r["Pick Is Home"] else "home"
     blended = r["Home Blended"] if r["Pick Is Home"] else r["Away Blended"]
-    note = " (includes last season)" if blended else ""
+    note = (f" ({SEASON - 1} record)" if method == "switch" else " (includes last season)") if blended else ""
     return (f"{r['Pick']} cover {pick_pct:.0f}% at {side} ({pick_rec}){note}; "
             f"{r['Opponent']} cover {opp_pct:.0f}% {opp_side} ({opp_rec}).")
 
@@ -33,8 +33,7 @@ def render() -> None:  # noqa: C901
         return
 
     with st.sidebar:
-        min_games = st.slider("Blend with last season until a team has this many home/away games",
-                              0, 8, MIN_GAMES_DEFAULT, key="min_games")
+        method, table_n = table_rule_controls(st.sidebar, "round")
 
     fx = fixtures()
     rounds = []
@@ -48,11 +47,13 @@ def render() -> None:  # noqa: C901
 
     if round_label == "Manual entry":
         base = pd.DataFrame([{"Home": "", "Away": ""} for _ in range(8)])
-        log_key = c2.text_input("Name this round", value="Round 1", key="manual_round_name")
+        round_no = c2.number_input("Round number", 1, 30, 1, key="manual_round_no")
+        log_key = f"Round {int(round_no)}"
     else:
         rows = fx[fx["Round"] == round_label]
         base = rows[["Home Team", "Away Team"]].rename(columns={"Home Team": "Home", "Away Team": "Away"})
         log_key = f"Round {round_label}" if str(round_label).isdigit() else round_label
+        round_no = int(round_label) if str(round_label).isdigit() else 99  # finals: this season
     full_key = f"{log_key}, {SEASON}"
 
     # Restore previously entered lines for this round.
@@ -93,12 +94,17 @@ def render() -> None:  # noqa: C901
 
     current = df[df["Season"] == SEASON]
     previous = df[df["Season"] == SEASON - 1]
-    splits = blended_splits(current, previous, min_games=min_games)
+    splits = season_table(current, previous, round_no, method, table_n)
+    if method == "switch":
+        src = f"{SEASON - 1} table" if round_no < table_n or current.empty else f"{SEASON} table"
+    else:
+        src = f"{SEASON}, blended with {SEASON - 1} while a team has fewer than {table_n} games"
+    st.caption(f"Ranking with the **{src}**.")
     ranked = rank_fixtures(splits, fixtures_in)
 
     if ranked.empty:
         st.info("Add a home line for at least one game to rank this round.")
-        with st.expander(f"ATS records used ({SEASON}, blended with {SEASON - 1} while thin)"):
+        with st.expander(f"ATS records used ({src})"):
             st.dataframe(ats_table(splits), hide_index=True, use_container_width=True)
         return
 
@@ -120,7 +126,7 @@ def render() -> None:  # noqa: C901
             unsafe_allow_html=True,
         )
     for i, (_, r) in enumerate(top5.iterrows(), start=1):
-        st.caption(f"**#{i}** {_why(r)}")
+        st.caption(f"**#{i}** {_why(r, method)}")
 
     if len(top5) < 5:
         st.warning(f"Only {len(top5)} games have a line, so 5-pick systems will be skipped this round.")
@@ -145,7 +151,7 @@ def render() -> None:  # noqa: C901
     st.dataframe(show, hide_index=True, use_container_width=True,
                  column_config={"Odds": st.column_config.NumberColumn(format="$%.2f")})
 
-    with st.expander(f"ATS records used ({SEASON}, blended with {SEASON - 1} while thin)"):
+    with st.expander(f"ATS records used ({src})"):
         st.dataframe(ats_table(splits), hide_index=True, use_container_width=True)
 
 

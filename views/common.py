@@ -12,7 +12,9 @@ SEASON = 2027
 FIXTURES_FILE = f"NRL-{SEASON}-Fixtures.xlsx"
 PICKS_FILE = f"picks_log_{SEASON}.json"
 DEFAULT_OUTLAY = 50.0
-MIN_GAMES_DEFAULT = 3
+TABLE_METHOD_DEFAULT = "switch"
+TABLE_N_DEFAULT = 6
+LEGACY_LOG_FILE = "safest_picks_log.json"   # the old NRL app's 2026 log, in the data repo
 
 CSS = """
 <style>
@@ -57,6 +59,30 @@ def results() -> pd.DataFrame | None:
 def fixtures() -> pd.DataFrame | None:
     raw, _ = storage.read_data_file(FIXTURES_FILE)
     return _parse_fixtures(raw) if raw else None
+
+
+def table_rule_controls(container, key: str) -> tuple[str, int]:
+    """Which ATS table ranks the picks. Shared default with the Backtest page."""
+    from safest5.ats import METHODS
+    method = container.selectbox(
+        "ATS table rule", list(METHODS), key=f"{key}_method",
+        index=list(METHODS).index(st.session_state.get("table_method", TABLE_METHOD_DEFAULT)),
+        format_func=lambda m: METHODS[m])
+    label = "Switch to this season from round" if method == "switch" else "Blend until N home/away games"
+    n = container.number_input(label, 1, 12, int(st.session_state.get("table_n", TABLE_N_DEFAULT)),
+                               key=f"{key}_n")
+    st.session_state["table_method"], st.session_state["table_n"] = method, int(n)
+    return method, int(n)
+
+
+def legacy_log() -> dict:
+    """The 2026 Safest 5 log saved by the old NRL app (read-only)."""
+    import json
+    raw, _ = storage.read_data_file(LEGACY_LOG_FILE)
+    try:
+        return json.loads(raw) if raw else {}
+    except Exception:
+        return {}
 
 
 def fmt_money(x: float) -> str:

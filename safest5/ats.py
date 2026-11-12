@@ -75,6 +75,39 @@ def blended_splits(current: pd.DataFrame, previous: pd.DataFrame | None, min_gam
     return out
 
 
+METHODS = {
+    "switch": "Last season's table until round N, then this season only",
+    "blend": "Blend each team with last season until it has N home/away games",
+}
+
+
+def _from_single(src: dict, teams: set, blended: bool) -> dict:
+    out = {}
+    for t in teams:
+        x = src.get(t, {"home": Split(), "away": Split()})
+        out[t] = {"home": x["home"], "away": x["away"], "overall": x["home"] + x["away"],
+                  "home_blended": blended, "away_blended": blended}
+    return out
+
+
+def season_table(current: pd.DataFrame, previous: pd.DataFrame | None, round_no: float,
+                 method: str = "switch", n: int = 6) -> dict:
+    """The ATS splits used to rank a round.
+
+    switch: rounds before `n` use last season's full table only ("blended" =
+            True marks it as last season's); from round `n` on, this season only.
+    blend:  per team, pool with last season until it has `n` home/away games.
+    """
+    previous = previous if previous is not None else current.iloc[0:0]
+    if method == "blend":
+        return blended_splits(current, previous, min_games=n)
+    teams = set(team_splits(current)) | set(team_splits(previous))
+    current_has_games = not current[current["ATS Result"].isin(["Home Cover", "Away Cover", "Push"])].empty
+    if round_no < n or not current_has_games:   # no results yet this season -> last season's table
+        return _from_single(team_splits(previous), teams, blended=True)
+    return _from_single(team_splits(current), teams, blended=False)
+
+
 def rank_fixtures(splits: dict, fixtures: list[dict]) -> pd.DataFrame:
     """Rank fixtures by split edge. Each fixture: home, away, home_line,
     and optional home_line_odds / away_line_odds. Games without a line are skipped."""

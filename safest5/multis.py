@@ -25,9 +25,22 @@ class System:
         n = min(self.picks, n_picks if n_picks is not None else self.picks)
         return sum(comb(n, k) for k in self.sizes if k <= n)
 
-    def playable(self, n_picks: int) -> bool:
-        """Playable only if we have every pick the system is built on."""
-        return n_picks >= self.picks
+    def playable(self, n_picks: int, adapt: bool = False) -> bool:
+        """Without adapt: only if we have every pick the system is built on.
+        With adapt: if any of its leg sizes fit the picks available."""
+        if n_picks >= self.picks:
+            return True
+        return adapt and bool(self.sizes_for(n_picks)) and n_picks > 0
+
+    def sizes_for(self, n: int) -> tuple[int, ...]:
+        """Leg sizes to use when a round only has n picks (e.g. finals).
+        The all-legs size (e.g. 5 in a 5-leg multi or full cover) becomes n;
+        sizes bigger than n are dropped. 3s from 5 with 4 picks -> 3s from 4;
+        full cover with 4 picks -> 2s, 3s and the 4-leg; 4s with 2 picks -> no bet."""
+        if n >= self.picks:
+            return self.sizes
+        mapped = {n if k == self.picks else k for k in self.sizes}
+        return tuple(sorted(k for k in mapped if 1 <= k <= n))
 
 
 PRESETS: list[System] = [
@@ -45,18 +58,19 @@ def preset(name: str) -> System:
     return next(s for s in PRESETS if s.name == name)
 
 
-def settle(system: System, legs: list[tuple[float, str]], outlay: float) -> dict:
+def settle(system: System, legs: list[tuple[float, str]], outlay: float, adapt: bool = False) -> dict:
     """Settle one round.
 
     legs: [(odds, result)] for the top picks in rank order; only the first
-    `system.picks` are used. Returns bets, stake per bet, return, profit and
-    how many combinations landed.
+    `system.picks` are used. With adapt=True a round with fewer picks (finals)
+    plays the system on the picks available (see System.sizes_for); otherwise
+    it isn't bet. Returns bets, stake per bet, return, profit, combos landed.
     """
     legs = legs[: system.picks]
     n = len(legs)
-    if not system.playable(n):
+    if not system.playable(n, adapt):
         return {"bets": 0, "stake": 0.0, "outlay": 0.0, "return": 0.0, "profit": 0.0, "landed": 0}
-    combos = [c for k in system.sizes if k <= n for c in combinations(range(n), k)]
+    combos = [c for k in system.sizes_for(n) for c in combinations(range(n), k)]
     stake = outlay / len(combos)
     ret, landed = 0.0, 0
     for c in combos:
@@ -87,12 +101,12 @@ class SystemMix:
         return sum(s.n_bets() for s, _ in self.parts)
 
 
-def settle_mix(mix: SystemMix, legs: list[tuple[float, str]]) -> dict:
+def settle_mix(mix: SystemMix, legs: list[tuple[float, str]], adapt: bool = False) -> dict:
     """Settle each part with its own outlay and add them up. A part that can't
     be played this round (too few picks) is skipped, not counted as a loss."""
     total = {"bets": 0, "outlay": 0.0, "return": 0.0, "profit": 0.0, "landed": 0}
     for system, outlay in mix.parts:
-        r = settle(system, legs, outlay)
+        r = settle(system, legs, outlay, adapt)
         for k in total:
             total[k] += r[k]
     return total

@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .ats import blended_splits, rank_fixtures
+from .ats import rank_fixtures, season_table
 from .multis import LOSS, PUSH, WIN, SystemMix, settle_mix
 
 
 def rebuild_picks(results: pd.DataFrame, seasons: list[int] | None = None,
-                  min_games: int = 3, top_n: int = 5) -> pd.DataFrame:
-    """One row per pick: Season, Week, Rank, Pick, Line, Odds, Result."""
+                  method: str = "switch", n: int = 6, top_n: int = 5) -> pd.DataFrame:
+    """One row per pick: Season, Week, Rank, Pick, Line, Odds, Result.
+    The week number stands in for the round number for the switch rule."""
     df = results[results["Line"].notna()].copy()
     all_seasons = sorted(df["Season"].unique())
     seasons = seasons or all_seasons
@@ -26,7 +27,7 @@ def rebuild_picks(results: pd.DataFrame, seasons: list[int] | None = None,
         for week in sorted(season_df["Week"].unique()):
             played = season_df[season_df["Week"] < week]
             games = season_df[season_df["Week"] == week]
-            splits = blended_splits(played, prev_df, min_games=min_games)
+            splits = season_table(played, prev_df, week, method, n)
             fixtures = [{
                 "home": g["Home Team"], "away": g["Away Team"], "home_line": g["Line"],
                 "home_line_odds": g["Home Line Price"], "away_line_odds": g["Away Line Price"],
@@ -57,8 +58,42 @@ def rebuild_picks(results: pd.DataFrame, seasons: list[int] | None = None,
     return pd.DataFrame(rows)
 
 
-def run_mixes(picks: pd.DataFrame, mixes: list[SystemMix]) -> pd.DataFrame:
-    """Settle every mix on every week. One row per (mix, week)."""
+def grade_saved_log(results: pd.DataFrame, log: dict) -> pd.DataFrame:
+    """Grade a saved Safest 5 log (keys like 'Round 25, 2026') on the line saved
+    with each pick. Works with this site's log and the old NRL-app log."""
+    from .ats import grade_pick
+    from .data import round_sort_key
+
+    rows = []
+    for key, entries in (log or {}).items():
+        label, _, yr = str(key).rpartition(",")
+        try:
+            season = int(yr.strip())
+        except ValueError:
+            continue
+        label = label.strip()
+        order = round_sort_key(label.replace("Round ", ""))
+        games = results[results["Season"] == season]
+        for i, p in enumerate(entries, start=1):
+            pick_is_home = p.get("pick_is_home", p.get("pick") == p.get("home"))
+            g = games[(games["Home Team"] == p["home"]) & (games["Away Team"] == p["away"])]
+            result = "Pending"
+            if not g.empty and p.get("home_line") is not None:
+                margin = g.iloc[-1]["Margin"] * (1 if pick_is_home else -1)
+                result = grade_pick(p["home_line"] * (1 if pick_is_home else -1), margin)
+            rows.append({"Season": season, "Round": label, "Week": order, "Rank": p.get("rank", i),
+                         "Pick": p.get("pick"), "Line": p.get("line_display"),
+                         "Odds": float(p.get("odds") or 1.90), "Confidence": p.get("confidence"),
+                         "Result": result})
+    out = pd.DataFrame(rows)
+    if not out.empty:
+        out = out.sort_values(["Season", "Week", "Rank"]).reset_index(drop=True)
+    return out
+
+
+def run_mixes(picks: pd.DataFrame, mixes: list[SystemMix], adapt: bool = True) -> pd.DataFrame:
+    """Settle every mix on every week. One row per (mix, week).
+    adapt: short rounds (finals) play each system on the picks available."""
     rows = []
     if picks.empty:
         return pd.DataFrame(rows)
@@ -66,10 +101,11 @@ def run_mixes(picks: pd.DataFrame, mixes: list[SystemMix]) -> pd.DataFrame:
         wk = wk.sort_values("Rank")
         legs = list(zip(wk["Odds"], wk["Result"]))
         for mix in mixes:
-            r = settle_mix(mix, legs)
+            r = settle_mix(mix, legs, adapt)
             rows.append({
                 "System": mix.name, "Season": season, "Week": week,
-                "Week Start": wk["Week Start"].iloc[0],
+                "Round": wk["Round"].iloc[0] if "Round" in wk else f"Week {week}",
+                "Week Start": wk["Week Start"].iloc[0] if "Week Start" in wk else None,
                 "Picks": len(legs), "Winners": sum(1 for _, x in legs if x == WIN),
                 "Bet": r["bets"] > 0, **{k.title(): v for k, v in r.items()},
             })

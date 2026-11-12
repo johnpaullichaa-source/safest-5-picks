@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from safest5.ats import blended_splits, rank_fixtures
+from safest5.ats import blended_splits, rank_fixtures, season_table
 from safest5.backtest import rebuild_picks
 from safest5.multis import LOSS, PUSH, WIN, SystemMix, as_mix, payout_table, preset, settle, settle_mix
 
@@ -74,7 +74,7 @@ def _games():
 
 def test_no_lookahead():
     df = _games()
-    picks = rebuild_picks(df, seasons=[2026], min_games=0)
+    picks = rebuild_picks(df, seasons=[2026], method="blend", n=0)
     # Week 1 has no prior results: both teams 0%, tiebreak picks home.
     w3 = picks[picks["Week"] == 3].iloc[0]
     # Before week 3, A is 1-0 at home and C is 0-0 away, so A is picked.
@@ -87,3 +87,20 @@ def test_blend_uses_last_season_when_thin():
     prev = df.assign(Season=2025)
     splits = blended_splits(df.iloc[0:0], prev, min_games=3)
     assert splits["A"]["home"].covers == 2 and splits["A"]["home_blended"]
+
+
+def test_short_round_adapts_when_asked():
+    four = legs([WIN] * 4)
+    assert settle(preset("3s from 5"), four, 50, adapt=True)["bets"] == 4      # 3s from 4
+    assert settle(preset("5-leg multi"), four, 50, adapt=True)["bets"] == 1    # 4-leg multi
+    assert settle(preset("Full cover (26)"), four, 50, adapt=True)["bets"] == 11  # 6+4+1
+    assert settle(preset("4s from 5"), legs([WIN] * 2), 50, adapt=True)["bets"] == 0
+
+
+def test_switch_rule_uses_last_season_then_this_season():
+    df = _games()
+    prev = df.assign(Season=2025, **{"ATS Result": "Away Cover"})
+    early = season_table(df, prev, round_no=3, method="switch", n=6)
+    late = season_table(df, prev, round_no=6, method="switch", n=6)
+    assert early["A"]["home"].covers == 0 and early["A"]["home"].losses == 2   # 2025 only
+    assert late["A"]["home"].covers == 2 and late["A"]["home"].losses == 0  # 2026 only
