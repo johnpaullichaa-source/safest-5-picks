@@ -15,16 +15,18 @@ this repo.
 |---|---|
 | **This Round** | Pick a round, enter lines and prices, see games ranked by home/away ATS split edge. Save the top 5 to the tracker. |
 | **Multi Simulator** | Put a system (2s/3s/4s from 5, full cover, custom) or a split of several (e.g. $25 on 3s + $25 on 4s) on five picks and see the return for every number of winners, plus every bet. |
-| **Backtest** | Rebuilds the Safest 5 for every round since 2013 using only results known before each round, then settles singles, systems and your split. Shows ROI, running profit, season-by-season results, losing runs and drawdowns. |
+| **Backtest** | Settles singles, systems and your splits on the Safest 5 picks you actually saved (the 2026 log from the NRL app plus this site's log), graded on the line saved with each pick. Shows ROI, round-by-round profit, running profit, losing runs and drawdowns. |
 | **2027 Tracker** | Grades saved picks as results land in `nrl.xlsx` and tracks profit for whichever bet you choose. |
 
 ## How the backtest works
 
-- **Rounds** are betting weeks (Wednesday to Tuesday) within each season.
-- **Picks** are ranked exactly like the live page: home team's Home ATS % vs away team's Away ATS %, overall ATS % as the tiebreak.
-- **Early season:** a team's home (or away) split is pooled with last season's until it has 3 games this season (adjustable).
-- **Lines:** closing line, or the opening line where there isn't one (most of 2024–25). **Prices:** matching line odds, or $1.90 if missing.
-- **System multis:** each combination is its own multi; a pushed leg is void (odds 1.00); the stake is split evenly across the combinations. A system needing more picks than the round has isn't bet that round.
+- **Picks:** only saved Safest 5 picks: `safest_picks_log.json` in the NRL repo (Round 25, 2026 onwards) plus `picks_log_2027.json` here. Each is graded on the line saved with it.
+- **System multis:** each combination is its own multi; a pushed leg is void (odds 1.00); the stake is split evenly across the combinations.
+- **Short rounds (finals):** by default each system plays on the picks available (3s from 5 becomes 3s from 4, a 5-leg multi becomes a multi on every pick). Untick the option to skip those weeks instead.
+
+## Which ATS table ranks the picks
+
+Rounds 1–5 use last season's table; from Round 6, this season's results only (the switch round is a setting). Finals use this season.
 
 ## Setup
 
