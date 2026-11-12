@@ -19,4 +19,4 @@ with st.sidebar:
         storage.refresh_data()
         st.rerun()
 
-st.navigation(pages).run()
+st.navigation(pages, position="top").run()

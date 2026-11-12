@@ -32,8 +32,8 @@ def render() -> None:  # noqa: C901
     if df is None:
         return
 
-    with st.sidebar:
-        method, table_n = table_rule_controls(st.sidebar, "round")
+    with st.expander("Settings: which ATS table ranks the picks"):
+        method, table_n = table_rule_controls(st, "round")
 
     fx = fixtures()
     rounds = []
@@ -46,7 +46,7 @@ def render() -> None:  # noqa: C901
         c2.info(f"NRL-{SEASON}-Fixtures.xlsx isn't in your NRL repo yet, so type the games in below.")
 
     if round_label == "Manual entry":
-        base = pd.DataFrame([{"Home": "", "Away": ""} for _ in range(8)])
+        base = pd.DataFrame({"Home": [None] * 8, "Away": [None] * 8}, dtype="object")
         round_no = c2.number_input("Round number", 1, 30, 1, key="manual_round_no")
         log_key = f"Round {int(round_no)}"
     else:
@@ -69,8 +69,8 @@ def render() -> None:  # noqa: C901
         base, key=f"lines_{full_key}", hide_index=True, use_container_width=True,
         num_rows="dynamic" if round_label == "Manual entry" else "fixed",
         column_config={
-            "Home": st.column_config.SelectboxColumn("Home", options=teams),
-            "Away": st.column_config.SelectboxColumn("Away", options=teams),
+            "Home": st.column_config.SelectboxColumn("Home", options=teams, pinned=True, width="medium"),
+            "Away": st.column_config.SelectboxColumn("Away", options=teams, pinned=True, width="medium"),
             "Home line": st.column_config.NumberColumn("Home line", min_value=-50.0, max_value=50.0,
                                                        step=0.5, format="%+.1f"),
             "Home line $": st.column_config.NumberColumn("Home line $", min_value=1.01, step=0.01, format="$%.2f"),
@@ -90,7 +90,7 @@ def render() -> None:  # noqa: C901
         "home": r["Home"], "away": r["Away"], "home_line": _num(r["Home line"]),
         "home_line_odds": _num(r["Home line $"]) or DEFAULT_LINE_ODDS,
         "away_line_odds": _num(r["Away line $"]) or DEFAULT_LINE_ODDS,
-    } for _, r in edited.iterrows() if r["Home"] and r["Away"]]
+    } for _, r in edited.iterrows() if pd.notna(r["Home"]) and pd.notna(r["Away"]) and r["Home"] and r["Away"]]
 
     current = df[df["Season"] == SEASON]
     previous = df[df["Season"] == SEASON - 1]
