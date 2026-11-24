@@ -118,3 +118,12 @@ def test_from_four_uses_top_four_picks():
     s = next(x for x in systems_for(4) if x.name == "2s from 4")
     r = settle(s, legs([WIN] * 4 + [LOSS]), 60)   # 5th pick ignored
     assert r["bets"] == 6 and r["landed"] == 6
+
+
+def test_new_club_with_no_record_is_ranked_as_50_percent():
+    df = _games()
+    splits = season_table(df, None, round_no=10, method="switch", n=6)
+    ranked = rank_fixtures(splits, [{"home": "Perth Bears", "away": "B", "home_line": -2.5}])
+    assert len(ranked) == 1
+    r = ranked.iloc[0]
+    assert r["Home Split %"] == 50.0 and r["Home Split Record"] == "0-0-0"

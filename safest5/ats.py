@@ -28,7 +28,8 @@ class Split:
         return self.covers + self.losses
 
     def pct(self) -> float:
-        return round(self.covers / self.decisive * 100, 1) if self.decisive else 0.0
+        """Cover %. A team with no decided games yet (e.g. a new club) counts as a neutral 50%."""
+        return round(self.covers / self.decisive * 100, 1) if self.decisive else 50.0
 
     def __add__(self, other: "Split") -> "Split":
         return Split(self.covers + other.covers, self.losses + other.losses, self.pushes + other.pushes)
@@ -116,9 +117,9 @@ def rank_fixtures(splits: dict, fixtures: list[dict]) -> pd.DataFrame:
         home, away, line = f.get("home"), f.get("away"), f.get("home_line")
         if not home or not away or home == away or line is None or pd.isna(line):
             continue
-        if home not in splits or away not in splits:
-            continue
-        h, a = splits[home], splits[away]
+        empty = {"home": Split(), "away": Split(), "overall": Split(),
+                 "home_blended": False, "away_blended": False}
+        h, a = splits.get(home, empty), splits.get(away, empty)   # new club: no record yet
         hs, as_ = h["home"].pct(), a["away"].pct()
         ho, ao = h["overall"].pct(), a["overall"].pct()
         if hs > as_:

@@ -14,6 +14,8 @@ PICKS_FILE = f"picks_log_{SEASON}.json"
 DEFAULT_OUTLAY = 50.0
 TABLE_METHOD_DEFAULT = "switch"
 TABLE_N_DEFAULT = 6
+# Clubs joining the comp that have no results in nrl.xlsx yet.
+NEW_TEAMS = ["Perth Bears"]
 LEGACY_LOG_FILE = "safest_picks_log.json"   # the old NRL app's 2026 log, in the data repo
 
 CSS = """

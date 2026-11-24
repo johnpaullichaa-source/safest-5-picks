@@ -9,7 +9,7 @@ from safest5 import storage
 from safest5.ats import ats_table, rank_fixtures, season_table
 from safest5.data import DEFAULT_LINE_ODDS, round_sort_key
 
-from views.common import PICKS_FILE, SEASON, fixtures, page_header, results, table_rule_controls
+from views.common import NEW_TEAMS, PICKS_FILE, SEASON, fixtures, page_header, results, table_rule_controls
 
 
 def _why(r: pd.Series, method: str) -> str:
@@ -20,6 +20,10 @@ def _why(r: pd.Series, method: str) -> str:
     opp_rec = r["Away Split Record"] if r["Pick Is Home"] else r["Home Split Record"]
     opp_side = "away" if r["Pick Is Home"] else "home"
     blended = r["Home Blended"] if r["Pick Is Home"] else r["Away Blended"]
+    if pick_rec == "0-0-0":
+        pick_rec = "no record yet, counted as 50%"
+    if opp_rec == "0-0-0":
+        opp_rec = "no record yet, counted as 50%"
     note = (f" ({SEASON - 1} record)" if method == "switch" else " (includes last season)") if blended else ""
     return (f"{r['Pick']} cover {pick_pct:.0f}% at {side} ({pick_rec}){note}; "
             f"{r['Opponent']} cover {opp_pct:.0f}% {opp_side} ({opp_rec}).")
@@ -62,7 +66,7 @@ def render() -> None:  # noqa: C901
     for col, k in (("Home line", "home_line"), ("Home line $", "home_odds"), ("Away line $", "away_odds")):
         base[col] = [saved_inputs.get(f"{h}|{a}", {}).get(k) for h, a in zip(base["Home"], base["Away"])]
 
-    teams = sorted(set(df[df["Season"] >= SEASON - 1]["Home Team"]))
+    teams = sorted(set(df[df["Season"] >= SEASON - 1]["Home Team"]) | set(NEW_TEAMS))
     st.subheader("Lines and prices")
     st.caption("Enter the home line (negative = home favourite). Prices default to $1.90 if left blank.")
     edited = st.data_editor(
