@@ -54,6 +54,21 @@ PRESETS: list[System] = [
 ]
 
 
+def systems_for(n: int) -> list[System]:
+    """Every system you can build on n legs: singles, 2s..(n-1)s from n,
+    the all-legs multi, and full cover with and without singles."""
+    out = [System(f"Singles ({n})", (1,), n)]
+    out += [System(f"{k}s from {n}", (k,), n) for k in range(2, n)]
+    if n >= 2:
+        out.append(System(f"{n}-leg multi", (n,), n))
+    if n >= 3:
+        full = tuple(range(2, n + 1))
+        out.append(System(f"Full cover ({sum(comb(n, k) for k in full)} bets)", full, n))
+        out.append(System(f"Full cover + singles ({sum(comb(n, k) for k in (1,) + full)} bets)",
+                          (1,) + full, n))
+    return out
+
+
 def preset(name: str) -> System:
     return next(s for s in PRESETS if s.name == name)
 

@@ -104,3 +104,17 @@ def test_switch_rule_uses_last_season_then_this_season():
     late = season_table(df, prev, round_no=6, method="switch", n=6)
     assert early["A"]["home"].covers == 0 and early["A"]["home"].losses == 2   # 2025 only
     assert late["A"]["home"].covers == 2 and late["A"]["home"].losses == 0  # 2026 only
+
+
+def test_systems_for_six_legs():
+    from safest5.multis import systems_for
+    names = {s.name: s.n_bets() for s in systems_for(6)}
+    assert names["2s from 6"] == 15 and names["3s from 6"] == 20 and names["6-leg multi"] == 1
+    assert names["Full cover (57 bets)"] == 57
+
+
+def test_from_four_uses_top_four_picks():
+    from safest5.multis import systems_for
+    s = next(x for x in systems_for(4) if x.name == "2s from 4")
+    r = settle(s, legs([WIN] * 4 + [LOSS]), 60)   # 5th pick ignored
+    assert r["bets"] == 6 and r["landed"] == 6

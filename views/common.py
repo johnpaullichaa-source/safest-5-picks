@@ -6,7 +6,7 @@ import streamlit as st
 
 from safest5 import storage
 from safest5.data import load_fixtures, load_results
-from safest5.multis import PRESETS, System, SystemMix
+from safest5.multis import SystemMix, systems_for
 
 SEASON = 2027
 FIXTURES_FILE = f"NRL-{SEASON}-Fixtures.xlsx"
@@ -94,27 +94,11 @@ def fmt_money(x: float) -> str:
 # System mix editor
 # ---------------------------------------------------------------------------
 
-def _custom_system(key: str) -> System | None:
-    with st.expander("Custom system", expanded=False):
-        c1, c2 = st.columns(2)
-        n = c1.selectbox("Use top", [3, 4, 5], index=2, key=f"{key}_cn",
-                         format_func=lambda v: f"{v} picks")
-        sizes = c2.multiselect("Leg sizes", list(range(1, 6)), default=[2, 3], key=f"{key}_cs",
-                               format_func=lambda v: "Singles" if v == 1 else f"{v}-leg")
-        sizes = tuple(sorted(s for s in sizes if s <= n))
-        if not sizes:
-            st.caption("Pick at least one leg size to use the custom system.")
-            return None
-        name = f"Custom: {'/'.join(map(str, sizes))}s from {n}"
-        sys_ = System(name, sizes, n)
-        st.caption(f"{name}: {sys_.n_bets()} bets. Choose “Custom” in the table to use it.")
-        return sys_
-
-
 def mix_editor(key: str, default_rows: list[dict] | None = None, label: str = "Your bet") -> SystemMix | None:
-    """Edit a mix of systems, each with its own stake. Returns None if empty."""
-    custom = _custom_system(key)
-    options = [s.name for s in PRESETS] + ["Custom"]
+    """Edit a mix of systems, each with its own stake. Returns None if empty.
+    “from 4” / “from 3” systems use the top 4 / top 3 ranked picks."""
+    lookup = {s.name: s for n in (5, 4, 3) for s in systems_for(n)}
+    options = list(lookup)
     default_rows = default_rows or [{"System": "3s from 5", "Stake ($)": 25.0},
                                     {"System": "4s from 5", "Stake ($)": 25.0}]
     edited = st.data_editor(
@@ -126,15 +110,9 @@ def mix_editor(key: str, default_rows: list[dict] | None = None, label: str = "Y
         },
     )
     parts = []
-    lookup = {s.name: s for s in PRESETS}
     for _, r in edited.dropna(subset=["System"]).iterrows():
         stake = float(r.get("Stake ($)") or 0)
-        if stake <= 0:
-            continue
-        if r["System"] == "Custom":
-            if custom:
-                parts.append((custom, stake))
-        else:
+        if stake > 0 and r["System"] in lookup:
             parts.append((lookup[r["System"]], stake))
     if not parts:
         return None
